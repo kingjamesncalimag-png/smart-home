@@ -1,13 +1,11 @@
-FROM php:8.2-apache
- 
+FROM php:8.2-cli
+
 RUN docker-php-ext-install pdo pdo_mysql
- 
-RUN a2dismod mpm_event && a2enmod mpm_prefork rewrite
- 
-COPY . /var/www/html/
- 
-RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf \
-    && sed -i 's/Listen 80/Listen ${PORT:-80}/' /etc/apache2/ports.conf \
-    && sed -i 's/<VirtualHost \*:80>/<VirtualHost *:${PORT:-80}>/' /etc/apache2/sites-enabled/000-default.conf
- 
-CMD ["apache2-foreground"]
+
+WORKDIR /app
+
+COPY . /app/
+
+EXPOSE 8080
+
+CMD ["php", "-S", "0.0.0.0:8080", "-t", "/app"]
