@@ -4,8 +4,11 @@ RUN docker-php-ext-install pdo pdo_mysql
 
 COPY . /var/www/html/
 
-RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
+RUN a2enmod rewrite
 
-EXPOSE 80
+ENV APACHE_RUN_USER www-data
+ENV APACHE_RUN_GROUP www-data
+
+COPY apache.conf /etc/apache2/sites-enabled/000-default.conf
 
 CMD ["apache2-foreground"]
