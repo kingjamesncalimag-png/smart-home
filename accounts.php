@@ -10,7 +10,7 @@
  * DELETE -> Delete account
  */
 
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/config.php';
 
 session_start();
 jsonHeaders();
