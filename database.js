@@ -7,7 +7,6 @@ const db = mysql.createPool({
     user: process.env.MYSQLUSER,
     password: process.env.MYSQLPASSWORD,
     database: process.env.MYSQLDATABASE,
-
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
@@ -15,12 +14,12 @@ const db = mysql.createPool({
 
 (async () => {
     try {
-        const conn = await db.getConnection();
+        const connection = await db.getConnection();
         console.log("✅ Connected to Railway MySQL");
-        conn.release();
+        connection.release();
     } catch (err) {
         console.error("❌ Database connection failed:");
-        console.error(err.message);
+        console.error(err);
     }
 })();
 
