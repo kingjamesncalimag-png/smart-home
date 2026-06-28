@@ -9,7 +9,7 @@
  * Reads from the `users` table (which includes all created accounts).
  * The role field in the request body is IGNORED — role comes from the DB.
  */
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/config.php';
 session_start();
 jsonHeaders();
 
