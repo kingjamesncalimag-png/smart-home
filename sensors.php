@@ -1,5 +1,8 @@
 <?php
 require_once __DIR__ . '/config.php';
+
+session_start();      // ← ADD THIS
+requireAuth();        // ← ADD THIS
 jsonHeaders();
 
 $db   = getDb();
