@@ -32,6 +32,12 @@ let modalRole = "client";
 let lastStatusHash = "";
 
 /*=========================================================
+ OTP STATE
+=========================================================*/
+
+let pendingUserId = null;
+
+/*=========================================================
  TEAM MEMBERS
 =========================================================*/
 
@@ -117,7 +123,30 @@ function updateClock() {
 }
 
 /*=========================================================
- LOGIN
+ API FETCH HELPER — handles 401 session expiry globally
+=========================================================*/
+
+async function apiFetch(url, options = {}) {
+
+    const response = await fetch(url, {
+        credentials: "include",
+        ...options
+    });
+
+    const data = await response.json();
+
+    if (response.status === 401 && !data.success) {
+        alert("Your session has expired. Please log in again.");
+        logout();
+        return null;
+    }
+
+    return data;
+
+}
+
+/*=========================================================
+ LOGIN — STEP 1: Verify credentials, trigger OTP
 =========================================================*/
 
 async function login() {
@@ -126,63 +155,106 @@ async function login() {
     const password = $("password").value;
 
     if (!username || !password) {
-
         alert("Please enter your username and password.");
-
         return;
-
     }
 
     try {
 
-        const response = await fetch(`${PHP}/auth.php`, {
-
+        const data = await apiFetch(`${PHP}/auth.php?action=send_otp`, {
             method: "POST",
-
-            headers: {
-
-                "Content-Type": "application/json"
-
-            },
-
-            credentials: "include",
-
-            body: JSON.stringify({
-
-                username,
-                password
-
-            })
-
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
         });
 
-        const data = await response.json();
+        if (!data) return;
 
         if (!data.success) {
-
             alert(data.message);
-
             return;
+        }
 
+        pendingUserId = data.user_id;
+
+        $("otp-hint").textContent =
+            `Enter the 6-digit code sent to ${data.masked_email}`;
+
+        $("step-credentials").classList.add("hidden");
+        $("step-otp").classList.remove("hidden");
+        $("otp-input").focus();
+
+    } catch (err) {
+        console.error(err);
+        alert("Unable to connect to the server.");
+    }
+
+}
+
+/*=========================================================
+ LOGIN — STEP 2: Verify OTP
+=========================================================*/
+
+async function verifyOTP() {
+
+    const otp = value("otp-input");
+
+    if (!otp || otp.length !== 6) {
+        alert("Please enter the 6-digit code.");
+        return;
+    }
+
+    try {
+
+        const data = await apiFetch(`${PHP}/auth.php?action=verify_otp`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: pendingUserId, otp_code: otp })
+        });
+
+        if (!data) return;
+
+        if (!data.success) {
+            alert(data.message);
+            return;
         }
 
         currentUser = data.username;
         currentRole = data.role;
+        pendingUserId = null;
+
+        // Reset login form back to step 1 for next time
+        $("step-otp").classList.add("hidden");
+        $("step-credentials").classList.remove("hidden");
+        $("otp-input").value = "";
 
         hide("login-page");
         show("main-app");
 
         initializeApplication();
 
-    }
-
-    catch (err) {
-
+    } catch (err) {
         console.error(err);
-
         alert("Unable to connect to the server.");
-
     }
+
+}
+
+/*=========================================================
+ LOGIN — RESEND OTP
+=========================================================*/
+
+async function resendOTP() {
+
+    const username = value("username");
+    const password = $("password").value;
+
+    await apiFetch(`${PHP}/auth.php?action=send_otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+    });
+
+    alert("A new code has been sent to your email.");
 
 }
 
@@ -202,6 +274,7 @@ function logout() {
 
     currentUser = null;
     currentRole = "client";
+    pendingUserId = null;
 
     accounts = [];
     currentStatus = {};
@@ -470,19 +543,17 @@ async function loadAccounts() {
 
     try {
 
-        const response = await fetch(`${PHP}/accounts.php`, {
-            credentials: "include"
-        });
+        const data = await apiFetch(`${PHP}/accounts.php`);
 
-        const data = await response.json();
+        if (!data) return;
 
         accounts = Array.isArray(data) ? data : [];
 
-filteredAccounts = [...accounts];
+        filteredAccounts = [...accounts];
 
-renderAccounts();
+        renderAccounts();
 
-updateDashboardStats();
+        updateDashboardStats();
 
     }
 
@@ -743,11 +814,9 @@ async function createAccount() {
 
     try {
 
-        const response = await fetch(`${PHP}/accounts.php`, {
+        const result = await apiFetch(`${PHP}/accounts.php`, {
 
             method: "POST",
-
-            credentials: "include",
 
             headers: {
 
@@ -759,7 +828,7 @@ async function createAccount() {
 
         });
 
-        const result = await response.json();
+        if (!result) return;
 
         if (!result.success) {
 
@@ -811,14 +880,11 @@ function openEditAccount(id) {
     $("m-dept").value = selectedAccount.department || "";
     $("m-uname").value = selectedAccount.username;
 
-    // ✅ FIX 3: reset password
     $("m-password").value = "";
 
-    // ✅ FIX 3: set role correctly
     $("m-role").value = selectedAccount.role;
     modalRole = selectedAccount.role;
 
-    // ✅ FIX 4: hide/lock role for non-admins
     if (currentRole !== "admin") {
         $("m-role").disabled = true;
     } else {
@@ -866,15 +932,13 @@ async function saveAccount() {
 
     try {
 
-        const response = await fetch(
+        const result = await apiFetch(
 
             `${PHP}/accounts.php?id=${selectedAccount.id}`,
 
             {
 
                 method: "PUT",
-
-                credentials: "include",
 
                 headers: {
 
@@ -888,7 +952,7 @@ async function saveAccount() {
 
         );
 
-        const result = await response.json();
+        if (!result) return;
 
         if (!result.success) {
 
@@ -930,21 +994,19 @@ async function deleteAccount(id) {
 
     try {
 
-        const response = await fetch(
+        const result = await apiFetch(
 
             `${PHP}/accounts.php?id=${id}`,
 
             {
 
-                method: "DELETE",
-
-                credentials: "include"
+                method: "DELETE"
 
             }
 
         );
 
-        const result = await response.json();
+        if (!result) return;
 
         if (!result.success) {
 
@@ -1110,21 +1172,16 @@ async function refreshDashboard() {
 
     try {
 
-        const response = await fetch(
+        const newData = await apiFetch(
             `${PHP}/sensors.php?type=latest`,
-            {
-                credentials: "include",
-                cache: "no-store"
-            }
+            { cache: "no-store" }
         );
 
-        const newData = await response.json();
+        if (!newData) return;
 
-        // create lightweight comparison key (FAST)
         const newHash =
             `${newData.temperature}|${newData.humidity}|${newData.rain}|${newData.connection}|${newData.rfid_uid}`;
 
-        // only update UI if something changed
         if (newHash !== lastStatusHash) {
 
             lastStatusHash = newHash;
@@ -1267,21 +1324,15 @@ async function loadSensorHistory() {
 
     try {
 
-        const response = await fetch(
+        const history = await apiFetch(
 
             `${PHP}/sensors.php?type=history&limit=20`,
 
-            {
-
-                credentials: "include",
-
-                cache: "no-store"
-
-            }
+            { cache: "no-store" }
 
         );
 
-        const history = await response.json();
+        if (!history) return;
 
         if (!Array.isArray(history)) {
 
@@ -1485,15 +1536,13 @@ async function sendCommand(type, action) {
 
     try {
 
-        const response = await fetch(
+        const result = await apiFetch(
 
             `${PHP}/control.php`,
 
             {
 
                 method: "POST",
-
-                credentials: "include",
 
                 headers: {
 
@@ -1512,7 +1561,7 @@ async function sendCommand(type, action) {
 
         );
 
-        const result = await response.json();
+        if (!result) return false;
 
         if (!result.success) {
 
@@ -1655,6 +1704,23 @@ document.addEventListener(
                 if (e.key === "Enter") {
 
                     login();
+
+                }
+
+            }
+
+        );
+
+        // OTP input — press Enter to verify
+        $("otp-input")?.addEventListener(
+
+            "keydown",
+
+            e => {
+
+                if (e.key === "Enter") {
+
+                    verifyOTP();
 
                 }
 
