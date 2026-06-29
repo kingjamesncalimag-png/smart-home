@@ -39,6 +39,8 @@ $_SESSION['user_id']  = $user['id'];
 $_SESSION['username'] = $user['username'];
 $_SESSION['role']     = $user['role'];
 
+session_regenerate_id(true); // prevents session fixation attacks
+
 sendJson([
     'success'  => true,
     'id'       => $user['id'],
