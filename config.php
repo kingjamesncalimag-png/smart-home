@@ -43,3 +43,18 @@ function sendJson($data, int $code = 200): void {
     echo json_encode($data);
     exit;
 }
+
+define('SESSION_TIMEOUT', 1800); // 30 minutes
+
+function requireAuth(): void {
+    if (empty($_SESSION['user_id'])) {
+        sendJson(['success' => false, 'message' => 'Not authenticated'], 401);
+    }
+    // Session timeout
+    if (isset($_SESSION['last_active']) &&
+        (time() - $_SESSION['last_active']) > SESSION_TIMEOUT) {
+        session_destroy();
+        sendJson(['success' => false, 'message' => 'Session expired. Please log in again.'], 401);
+    }
+    $_SESSION['last_active'] = time();
+}
