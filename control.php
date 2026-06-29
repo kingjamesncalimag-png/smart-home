@@ -5,6 +5,9 @@
  * Queues a command row; bridge.php picks it up and sends it to the Arduino.
  */
 require_once __DIR__ . '/config.php';
+
+session_start();      // ← ADD THIS
+requireAuth();        // ← ADD THIS
 jsonHeaders();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
