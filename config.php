@@ -65,14 +65,20 @@ function sendOTPEmail(string $to, string $otp): void {
     $port = (int)(getenv('SMTP_PORT') ?: 465);
     $from = getenv('SMTP_FROM') ?: $user;
 
-    $socket = fsockopen($host, $port, $errno, $errstr, 10);
+    $socket = stream_socket_client(
+        "ssl://{$host}:{$port}",
+        $errno,
+        $errstr,
+        10
+    );
+
     if (!$socket) throw new RuntimeException("SMTP connect failed: $errstr");
 
     $read = function() use ($socket) {
         $r = '';
         while ($line = fgets($socket, 515)) {
             $r .= $line;
-            if ($line[3] === ' ') break;
+            if (isset($line[3]) && $line[3] === ' ') break;
         }
         return $r;
     };
@@ -83,9 +89,6 @@ function sendOTPEmail(string $to, string $otp): void {
     };
 
     $read();
-    $send("EHLO " . gethostname());
-    $send("STARTTLS");
-    stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
     $send("EHLO " . gethostname());
     $send("AUTH LOGIN");
     $send(base64_encode($user));
