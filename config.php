@@ -59,54 +59,31 @@ function requireAuth(): void {
 }
 
 function sendOTPEmail(string $to, string $otp): void {
-    $host = getenv('SMTP_HOST') ?: 'smtp.gmail.com';
-    $user = getenv('SMTP_USER') ?: '';
-    $pass = getenv('SMTP_PASS') ?: '';
-    $port = (int)(getenv('SMTP_PORT') ?: 465);
-    $from = getenv('SMTP_FROM') ?: $user;
+    $apiKey = getenv('BREVO_API_KEY') ?: '';
+    $from   = getenv('SMTP_FROM') ?: getenv('SMTP_USER') ?: '';
 
-    $socket = stream_socket_client(
-        "ssl://{$host}:{$port}",
-        $errno,
-        $errstr,
-        10
-    );
+    $payload = json_encode([
+        'sender'      => ['name' => 'Smart Home', 'email' => $from],
+        'to'          => [['email' => $to]],
+        'subject'     => 'Smart Home Login Code',
+        'htmlContent' => "<h2>Your login code is: <b>$otp</b></h2><p>Expires in 10 minutes. Do not share it.</p>"
+    ]);
 
-    if (!$socket) throw new RuntimeException("SMTP connect failed: $errstr");
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'api-key: ' . $apiKey
+        ]
+    ]);
+    $result = curl_exec($ch);
+    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
 
-    $read = function() use ($socket) {
-        $r = '';
-        while ($line = fgets($socket, 515)) {
-            $r .= $line;
-            if (isset($line[3]) && $line[3] === ' ') break;
-        }
-        return $r;
-    };
-
-    $send = function(string $cmd) use ($socket, $read) {
-        fwrite($socket, $cmd . "\r\n");
-        return $read();
-    };
-
-    $read();
-    $send("EHLO " . gethostname());
-    $send("AUTH LOGIN");
-    $send(base64_encode($user));
-    $send(base64_encode($pass));
-    $send("MAIL FROM:<$from>");
-    $send("RCPT TO:<$to>");
-    $send("DATA");
-
-    $body = "Subject: Smart Home Login Code\r\n"
-          . "From: Smart Home <$from>\r\n"
-          . "To: $to\r\n"
-          . "Content-Type: text/html\r\n"
-          . "\r\n"
-          . "<h2>Your login code is: <b>$otp</b></h2>"
-          . "<p>Expires in 10 minutes. Do not share it.</p>";
-
-    fwrite($socket, $body . "\r\n.\r\n");
-    $read();
-    $send("QUIT");
-    fclose($socket);
+    if ($status !== 201) {
+        throw new RuntimeException("Brevo API error ($status): $result");
+    }
 }
