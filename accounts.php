@@ -257,6 +257,13 @@ if ($method === 'PUT') {
             'message'=>'Account not found.'
         ],404);
     }
+  // Clients can only edit their own account
+if (callerRole() !== 'admin' && $id !== (int)$_SESSION['user_id']) {
+    sendJson([
+        'success' => false,
+        'message' => 'You can only edit your own account.'
+    ], 403);
+}
 
     $role=$user['role'];
 
