@@ -62,7 +62,7 @@ function sendOTPEmail(string $to, string $otp): void {
     $host = getenv('SMTP_HOST') ?: 'smtp.gmail.com';
     $user = getenv('SMTP_USER') ?: '';
     $pass = getenv('SMTP_PASS') ?: '';
-    $port = (int)(getenv('SMTP_PORT') ?: 587);
+    $port = (int)(getenv('SMTP_PORT') ?: 465);
     $from = getenv('SMTP_FROM') ?: $user;
 
     $socket = fsockopen($host, $port, $errno, $errstr, 10);
