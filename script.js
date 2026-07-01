@@ -750,6 +750,7 @@ function clearCreateForm() {
         "gender",
         "dept",
         "uname",
+        "email",
         "create-password"
 
     ];
@@ -790,6 +791,7 @@ async function createAccount() {
 
         username: value("uname"),
         password: $("create-password").value,
+        email: $("email").value,
 
         age: value("age"),
         gender: value("gender"),
@@ -879,6 +881,7 @@ function openEditAccount(id) {
     $("m-gender").value = selectedAccount.gender || "";
     $("m-dept").value = selectedAccount.department || "";
     $("m-uname").value = selectedAccount.username;
+    $("m-email").value = selectedAccount.email || "";
 
     $("m-password").value = "";
 
@@ -915,6 +918,7 @@ async function saveAccount() {
         last_name: value("m-lname"),
 
         username: value("m-uname"),
+        email: $("m-email").value,
 
         age: value("m-age"),
         gender: value("m-gender"),
