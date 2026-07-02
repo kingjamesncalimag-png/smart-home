@@ -1,8 +1,8 @@
 <?php
 require_once __DIR__ . '/config.php';
 
-session_start();      // ← ADD THIS
-requireAuth();        // ← ADD THIS
+session_start();
+requireAuth();
 jsonHeaders();
 
 $db   = getDb();
@@ -12,7 +12,6 @@ if ($type === 'history') {
 
     $limit = max(1, min(200, (int)($_GET['limit'] ?? 20)));
 
-    // PDO requires bindValue with explicit INT type for LIMIT to work
     $stmt = $db->prepare("
         SELECT temperature, humidity, rain, created_at
         FROM sensor_readings
@@ -23,20 +22,39 @@ if ($type === 'history') {
     $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
     $stmt->execute();
 
-    sendJson($stmt->fetchAll());
+    $rows = $stmt->fetchAll();
+
+    // Convert timestamps to ISO 8601 UTC
+    foreach ($rows as &$row) {
+        if (!empty($row['created_at'])) {
+            $row['created_at'] = gmdate(
+                'c',
+                strtotime($row['created_at'] . ' UTC')
+            );
+        }
+    }
+    unset($row);
+
+    sendJson($rows);
 }
 
-// default: latest combined status
+// Default: latest device status
 $status = $db->query("SELECT * FROM device_status WHERE id = 1")->fetch();
 
 if ($status) {
 
-    $lastSeen = $status['last_seen'] ? strtotime($status['last_seen']) : 0;
+    $lastSeen = !empty($status['last_seen'])
+        ? strtotime($status['last_seen'] . ' UTC')
+        : 0;
 
     $status['connection'] =
         (!$lastSeen || time() - $lastSeen > 10)
         ? 'OFFLINE'
         : 'ONLINE';
+
+    if (!empty($status['last_seen'])) {
+        $status['last_seen'] = gmdate('c', $lastSeen);
+    }
 
     if ($type === 'latest') {
 
